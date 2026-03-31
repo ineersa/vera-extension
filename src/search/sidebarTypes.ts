@@ -1,0 +1,52 @@
+import { VeraResult } from '../types';
+
+export type ResultSource = 'search' | 'grep' | 'both';
+export type ResultTab = 'all' | 'search' | 'grep' | 'classes' | 'methods';
+export type SymbolGroup = 'class' | 'method' | 'variable' | 'other';
+export type MatchBucket = 'exact' | 'partial' | 'other';
+
+export interface RankedResult {
+  readonly result: VeraResult;
+  readonly source: ResultSource;
+  readonly symbolGroup: SymbolGroup;
+  readonly rank: number;
+  readonly bucket: MatchBucket;
+}
+
+export interface UiResult {
+  readonly filePath: string;
+  readonly lineStart: number;
+  readonly source: ResultSource;
+  readonly symbolGroup: SymbolGroup;
+  readonly bucket: MatchBucket;
+  readonly html: string;
+}
+
+export interface ViewState {
+  readonly query: string;
+  readonly loading: boolean;
+  readonly error: string;
+  readonly results: UiResult[];
+  readonly counts: Record<ResultTab, number>;
+  readonly allTabGrepLimit: number;
+}
+
+export const TAB_ORDER: readonly ResultTab[] = ['all', 'search', 'grep', 'classes', 'methods'];
+
+export const TAB_TITLES: Record<ResultTab, string> = {
+  all: 'All',
+  search: 'Search',
+  grep: 'Grep',
+  classes: 'Classes',
+  methods: 'Methods',
+};
+
+export function emptyCounts(): Record<ResultTab, number> {
+  return {
+    all: 0,
+    search: 0,
+    grep: 0,
+    classes: 0,
+    methods: 0,
+  };
+}

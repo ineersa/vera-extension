@@ -1,0 +1,95 @@
+{
+  "name": "vera-search",
+  "displayName": "Vera Search",
+  "description": "Semantic code search powered by Vera — hybrid BM25 + vector search with clickable snippets",
+  "version": "0.1.0",
+  "publisher": "vera",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Search"
+  ],
+  "activationEvents": [
+    "onCommand:vera.search",
+    "onView:vera.searchSidebar"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "vera.search",
+        "title": "Vera: Search Code"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "vera.search",
+        "key": "ctrl+shift+\\",
+        "mac": "cmd+shift+\\"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "veraSearch",
+          "title": "Vera",
+          "icon": "media/vera.svg"
+        }
+      ]
+    },
+    "views": {
+      "veraSearch": [
+        {
+          "type": "webview",
+          "id": "vera.searchSidebar",
+          "name": "Search"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Vera Search",
+      "properties": {
+        "veraSearch.searchLimit": {
+          "type": "number",
+          "default": 20,
+          "minimum": 1,
+          "maximum": 500,
+          "description": "Maximum results returned by semantic search (vera search)."
+        },
+        "veraSearch.grepLimit": {
+          "type": "number",
+          "default": 200,
+          "minimum": 1,
+          "maximum": 2000,
+          "description": "Maximum results returned by grep search (vera grep)."
+        },
+        "veraSearch.allTabGrepLimit": {
+          "type": "number",
+          "default": 20,
+          "minimum": 1,
+          "maximum": 500,
+          "description": "Maximum grep-only rows shown in the All tab."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "webpack --mode production",
+    "watch": "webpack --mode development --watch",
+    "lint": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.85.0",
+    "@types/node": "^20.11.0",
+    "typescript": "^5.4.0",
+    "ts-loader": "^9.5.0",
+    "webpack": "^5.90.0",
+    "webpack-cli": "^5.1.0"
+  },
+  "dependencies": {
+    "highlight.js": "^11.9.0"
+  }
+}

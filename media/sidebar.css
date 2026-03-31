@@ -1,0 +1,308 @@
+:root {
+  --vera-bg: var(--vscode-sideBar-background);
+  --vera-surface: var(--vscode-sideBarSectionHeader-background, var(--vscode-editorWidget-background));
+  --vera-border: var(--vscode-panel-border);
+  --vera-text: var(--vscode-sideBar-foreground, var(--vscode-editor-foreground));
+  --vera-muted: var(--vscode-descriptionForeground);
+  --vera-focus: var(--vscode-focusBorder);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+}
+
+body {
+  color: var(--vera-text);
+  background: var(--vera-bg);
+  font-family: var(--vscode-font-family, var(--vscode-editor-font-family));
+}
+
+.root {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  padding: 10px;
+  border-bottom: 1px solid var(--vera-border);
+  background: var(--vera-bg);
+}
+
+.search-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.query-input {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--vscode-input-border, var(--vera-border));
+  border-radius: 6px;
+  background: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+  padding: 8px 10px;
+  outline: none;
+  font-size: 12px;
+}
+
+.query-input:focus {
+  border-color: var(--vera-focus);
+}
+
+.search-btn {
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+  padding: 8px 12px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.search-btn:hover {
+  background: var(--vscode-button-hoverBackground);
+}
+
+.search-btn[disabled] {
+  opacity: 0.7;
+  cursor: default;
+}
+
+.status {
+  font-size: 12px;
+  color: var(--vera-muted);
+  margin-bottom: 8px;
+}
+
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.tab-btn {
+  border: 1px solid var(--vera-border);
+  border-radius: 999px;
+  background: var(--vscode-button-secondaryBackground, var(--vera-surface));
+  color: var(--vscode-button-secondaryForeground, var(--vera-text));
+  padding: 3px 10px;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.tab-btn:hover {
+  border-color: var(--vera-focus);
+}
+
+.tab-btn.active {
+  background: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+  border-color: var(--vscode-button-background);
+}
+
+.tab-count {
+  opacity: 0.85;
+}
+
+.error {
+  display: none;
+  margin-top: 8px;
+  border: 1px solid var(--vscode-inputValidation-errorBorder, var(--vera-border));
+  border-radius: 6px;
+  background: var(--vscode-inputValidation-errorBackground, var(--vera-surface));
+  color: var(--vscode-errorForeground, var(--vera-text));
+  padding: 8px 10px;
+  font-size: 12px;
+}
+
+.results {
+  padding: 10px;
+}
+
+.group {
+  margin-bottom: 14px;
+}
+
+.group-title {
+  font-size: 11px;
+  color: var(--vera-muted);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin: 4px 0 8px;
+}
+
+.result-card {
+  width: 100%;
+  text-align: left;
+  border: 1px solid var(--vera-border);
+  border-left-width: 3px;
+  border-radius: 8px;
+  background: var(--vera-surface);
+  color: inherit;
+  padding: 9px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  transition: border-color 120ms ease, background 120ms ease;
+}
+
+.result-card:hover {
+  background: var(--vscode-list-hoverBackground);
+  border-color: var(--vera-focus);
+}
+
+.result-card:focus-visible {
+  outline: 1px solid var(--vera-focus);
+  outline-offset: 1px;
+}
+
+.bucket-exact {
+  border-left-color: var(--vscode-testing-iconPassed, var(--vera-focus));
+}
+
+.bucket-partial {
+  border-left-color: var(--vscode-charts-blue, var(--vera-focus));
+}
+
+.bucket-other {
+  border-left-color: var(--vscode-descriptionForeground);
+}
+
+.result-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.result-main {
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.result-title {
+  font-size: 14px;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+
+.symbol-type {
+  font-size: 12px;
+  color: var(--vera-muted);
+}
+
+.result-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  justify-content: flex-end;
+}
+
+.pill {
+  border: 1px solid var(--vera-border);
+  border-radius: 999px;
+  padding: 1px 7px;
+  font-size: 11px;
+  color: var(--vera-muted);
+  background: var(--vscode-badge-background, transparent);
+}
+
+.kind-class {
+  border-color: var(--vscode-symbolIcon-classForeground, var(--vera-border));
+  color: var(--vscode-symbolIcon-classForeground, var(--vera-text));
+}
+
+.kind-method {
+  border-color: var(--vscode-symbolIcon-methodForeground, var(--vera-border));
+  color: var(--vscode-symbolIcon-methodForeground, var(--vera-text));
+}
+
+.kind-variable {
+  border-color: var(--vscode-symbolIcon-variableForeground, var(--vera-border));
+  color: var(--vscode-symbolIcon-variableForeground, var(--vera-text));
+}
+
+.source-search {
+  border-color: var(--vscode-testing-iconPassed, var(--vera-border));
+  color: var(--vscode-testing-iconPassed, var(--vera-text));
+}
+
+.source-grep {
+  border-color: var(--vscode-terminal-ansiYellow, var(--vera-border));
+  color: var(--vscode-terminal-ansiYellow, var(--vera-text));
+}
+
+.source-both {
+  border-color: var(--vscode-terminal-ansiMagenta, var(--vera-border));
+  color: var(--vscode-terminal-ansiMagenta, var(--vera-text));
+}
+
+.result-location {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--vera-muted);
+  font-family: var(--vscode-editor-font-family, monospace);
+  overflow-wrap: anywhere;
+}
+
+.snippet {
+  margin-top: 8px;
+  border: 1px solid var(--vera-border);
+  border-radius: 6px;
+  background: var(--vscode-textCodeBlock-background);
+  overflow: hidden;
+}
+
+.code-line {
+  display: grid;
+  grid-template-columns: 42px 1fr;
+  align-items: start;
+  gap: 8px;
+  padding: 2px 8px;
+  font-family: var(--vscode-editor-font-family, monospace);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.line-no {
+  color: var(--vscode-editorLineNumber-foreground);
+  text-align: right;
+  user-select: none;
+}
+
+.line-text {
+  color: var(--vscode-editor-foreground);
+  white-space: pre;
+  min-width: 0;
+  overflow-x: auto;
+  display: block;
+}
+
+.code-more .line-no,
+.code-more .line-text {
+  color: var(--vera-muted);
+}
+
+.empty {
+  border: 1px dashed var(--vera-border);
+  border-radius: 8px;
+  padding: 20px 10px;
+  text-align: center;
+  color: var(--vera-muted);
+}
