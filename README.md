@@ -2,7 +2,7 @@
 
 Semantic code search inside VS Code powered by [Vera](https://github.com/nicepkg/vera).
 
-Runs `vera search` (hybrid BM25 + vector) and `vera grep` (regex) in parallel, then renders ranked results in a persistent sidebar view with tabs and syntax-highlighted snippets.
+Runs `vera search` (hybrid BM25 + vector) and `vera grep` (regex) in parallel, renders ranked results in a persistent sidebar view, and can keep the index warm with background `vera watch`.
 
 ## Requirements
 
@@ -33,10 +33,11 @@ code --install-extension vera-search-0.1.0.vsix
 
 1. Open a workspace that has a `.vera/` index
 2. Press **Ctrl+Shift+\\** (or **Cmd+Shift+\\** on macOS) — or run **Vera: Search Code** from the Command Palette (`Ctrl+Shift+P`)
-3. Vera sidebar opens on the left; type a query in the search box and press Enter
+3. Vera sidebar opens on the left; type a query, optionally enable **Deep** (`--deep`) or **Docs** (`--scope docs`), then press Enter
 4. Results render in-place in the same sidebar with sectioned ranking and 3-line snippets
-5. Use tabs to switch between All, Search, Grep, Classes, and Methods (`All` caps grep-only rows to 20, `Grep` shows up to 200 grep rows)
+5. Use tabs to switch between All, Search, Grep, Classes, and Methods (`All` caps grep-only rows using `veraSearch.allTabGrepLimit`)
 6. Select any result to jump to that file and line
+7. With `veraSearch.autoWatch` enabled, the extension runs `vera watch` in background to keep the first workspace index fresh
 
 If no index exists, the extension will offer to run `vera index .` for you.
 
@@ -54,6 +55,7 @@ npm run lint         # type-check only
 - `veraSearch.searchLimit` (default: `20`) — max semantic search results.
 - `veraSearch.grepLimit` (default: `200`) — max grep results.
 - `veraSearch.allTabGrepLimit` (default: `20`) — grep-only rows shown in the `All` tab.
+- `veraSearch.autoWatch` (default: `true`) — run `vera watch` in background when `.vera` exists.
 
 The extension uses `vera` from `PATH` and auto-detects the first workspace root.
 

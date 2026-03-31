@@ -56,6 +56,16 @@ export function buildSidebarHtml(
         <input id="query-input" class="query-input" type="text" placeholder="Search symbols and code with Vera..." value="${escapeHtml(state.query)}" />
         <button id="search-button" class="search-btn" type="submit">Search</button>
       </form>
+      <div class="search-options" role="group" aria-label="Search options">
+        <label class="search-option">
+          <input id="deep-search" type="checkbox" ${state.deepSearch ? 'checked' : ''}>
+          <span>Deep</span>
+        </label>
+        <label class="search-option">
+          <input id="docs-scope" type="checkbox" ${state.docsScope ? 'checked' : ''}>
+          <span>Docs</span>
+        </label>
+      </div>
       <div id="status" class="status"></div>
       <div class="tabs">${tabsHtml}</div>
       <div id="error" class="error"></div>

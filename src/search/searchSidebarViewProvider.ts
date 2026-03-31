@@ -21,10 +21,15 @@ export class SearchSidebarViewProvider implements vscode.WebviewViewProvider, vs
 
   private state: ViewState;
 
-  constructor(private readonly extensionUri: vscode.Uri) {
+  constructor(
+    private readonly extensionUri: vscode.Uri,
+    private readonly onSearchLifecycle?: () => void
+  ) {
     const settings = getVeraSearchSettings();
     this.state = {
       query: '',
+      deepSearch: false,
+      docsScope: false,
       loading: false,
       error: '',
       results: [],
@@ -89,7 +94,7 @@ export class SearchSidebarViewProvider implements vscode.WebviewViewProvider, vs
 
   private async handleMessage(msg: unknown): Promise<void> {
     if (isSearchMessage(msg)) {
-      await this.search(msg.query);
+      await this.search(msg.query, msg.deepSearch === true, msg.docsScope === true);
       return;
     }
 
@@ -98,13 +103,15 @@ export class SearchSidebarViewProvider implements vscode.WebviewViewProvider, vs
     }
   }
 
-  private async search(rawQuery: string): Promise<void> {
+  private async search(rawQuery: string, deepSearch: boolean, docsScope: boolean): Promise<void> {
     const settings = getVeraSearchSettings();
     const query = rawQuery.trim();
     if (!query) {
       this.cancelPendingSearch();
       this.state = {
         query: '',
+        deepSearch,
+        docsScope,
         loading: false,
         error: '',
         results: [],
@@ -123,6 +130,8 @@ export class SearchSidebarViewProvider implements vscode.WebviewViewProvider, vs
     this.state = {
       ...this.state,
       query,
+      deepSearch,
+      docsScope,
       loading: true,
       error: '',
       allTabGrepLimit: settings.allTabGrepLimit,
@@ -130,7 +139,11 @@ export class SearchSidebarViewProvider implements vscode.WebviewViewProvider, vs
     this.postState();
 
     try {
-      const { searchResults, grepResults } = await veraSearch(query, cts.token);
+      const { searchResults, grepResults } = await veraSearch(
+        query,
+        { deepSearch, docsScope },
+        cts.token
+      );
 
       if (cts.token.isCancellationRequested || requestId !== this.searchRequestId) {
         return;
@@ -140,6 +153,8 @@ export class SearchSidebarViewProvider implements vscode.WebviewViewProvider, vs
 
       this.state = {
         query,
+        deepSearch,
+        docsScope,
         loading: false,
         error: '',
         allTabGrepLimit: settings.allTabGrepLimit,
@@ -154,12 +169,15 @@ export class SearchSidebarViewProvider implements vscode.WebviewViewProvider, vs
       const message = err instanceof Error ? err.message : String(err);
       this.state = {
         ...this.state,
+        deepSearch,
+        docsScope,
         loading: false,
         allTabGrepLimit: settings.allTabGrepLimit,
         error: `Vera search failed: ${message}`,
       };
       this.postState();
     } finally {
+      this.onSearchLifecycle?.();
       if (this.searchCts === cts) {
         this.searchCts = undefined;
       }

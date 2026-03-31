@@ -13,7 +13,8 @@
   ],
   "activationEvents": [
     "onCommand:vera.search",
-    "onView:vera.searchSidebar"
+    "onView:vera.searchSidebar",
+    "onStartupFinished"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -71,6 +72,11 @@
           "minimum": 1,
           "maximum": 500,
           "description": "Maximum grep-only rows shown in the All tab."
+        },
+        "veraSearch.autoWatch": {
+          "type": "boolean",
+          "default": true,
+          "description": "Run `vera watch` in the background for the first workspace folder when a `.vera` index exists."
         }
       }
     }

@@ -5,6 +5,11 @@ import * as vscode from 'vscode';
 import { VeraResult } from './types';
 import { getVeraSearchSettings } from './settings';
 
+export interface VeraSearchOptions {
+  readonly deepSearch?: boolean;
+  readonly docsScope?: boolean;
+}
+
 function escapeRegexPattern(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
@@ -90,6 +95,7 @@ function runVera(
 
 export async function veraSearch(
   query: string,
+  options: VeraSearchOptions = {},
   token?: vscode.CancellationToken
 ): Promise<{ searchResults: VeraResult[]; grepResults: VeraResult[] }> {
   const root = getWorkspaceRoot();
@@ -102,6 +108,8 @@ export async function veraSearch(
   }
 
   const settings = getVeraSearchSettings();
+  const deepSearch = options.deepSearch === true;
+  const docsScope = options.docsScope === true;
 
   if (!hasVeraIndex(root)) {
     const choice = await vscode.window.showWarningMessage(
@@ -120,8 +128,16 @@ export async function veraSearch(
   const escapedQuery = escapeRegexPattern(query);
   const runLiteralGrep = escapedQuery !== query;
 
+  const searchArgs = ['search', query, '--json', '-n', String(settings.searchLimit)];
+  if (deepSearch) {
+    searchArgs.push('--deep');
+  }
+  if (docsScope) {
+    searchArgs.push('--scope', 'docs');
+  }
+
   const [searchResults, grepRegexResults, grepLiteralResults] = await Promise.allSettled([
-    runVera(['search', query, '--json', '-n', String(settings.searchLimit)], root, token),
+    runVera(searchArgs, root, token),
     runVera(['grep', query, '--json', '-n', String(settings.grepLimit)], root, token),
     runLiteralGrep
       ? runVera(['grep', escapedQuery, '--json', '-n', String(settings.grepLimit)], root, token)

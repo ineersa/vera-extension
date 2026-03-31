@@ -1,6 +1,8 @@
 export interface SearchMessage {
   readonly type: 'search';
   readonly query: string;
+  readonly deepSearch?: boolean;
+  readonly docsScope?: boolean;
 }
 
 export interface OpenFileMessage {
@@ -10,12 +12,24 @@ export interface OpenFileMessage {
 }
 
 export function isSearchMessage(msg: unknown): msg is SearchMessage {
-  return (
-    typeof msg === 'object' &&
-    msg !== null &&
-    (msg as SearchMessage).type === 'search' &&
-    typeof (msg as SearchMessage).query === 'string'
-  );
+  if (typeof msg !== 'object' || msg === null) {
+    return false;
+  }
+
+  const message = msg as SearchMessage;
+  if (message.type !== 'search' || typeof message.query !== 'string') {
+    return false;
+  }
+
+  if (typeof message.deepSearch !== 'undefined' && typeof message.deepSearch !== 'boolean') {
+    return false;
+  }
+
+  if (typeof message.docsScope !== 'undefined' && typeof message.docsScope !== 'boolean') {
+    return false;
+  }
+
+  return true;
 }
 
 export function isOpenFileMessage(msg: unknown): msg is OpenFileMessage {

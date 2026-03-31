@@ -3,11 +3,18 @@ import * as vscode from 'vscode';
 const DEFAULT_SEARCH_LIMIT = 20;
 const DEFAULT_GREP_LIMIT = 200;
 const DEFAULT_ALL_TAB_GREP_LIMIT = 20;
+const DEFAULT_AUTO_WATCH = true;
 
 export interface VeraSearchSettings {
   readonly searchLimit: number;
   readonly grepLimit: number;
   readonly allTabGrepLimit: number;
+  readonly autoWatch: boolean;
+}
+
+function readBoolean(config: vscode.WorkspaceConfiguration, key: string, fallback: boolean): boolean {
+  const value = config.get<boolean>(key, fallback);
+  return typeof value === 'boolean' ? value : fallback;
 }
 
 function readNumber(
@@ -32,5 +39,6 @@ export function getVeraSearchSettings(): VeraSearchSettings {
     searchLimit: readNumber(config, 'searchLimit', DEFAULT_SEARCH_LIMIT, 1, 500),
     grepLimit: readNumber(config, 'grepLimit', DEFAULT_GREP_LIMIT, 1, 2000),
     allTabGrepLimit: readNumber(config, 'allTabGrepLimit', DEFAULT_ALL_TAB_GREP_LIMIT, 1, 500),
+    autoWatch: readBoolean(config, 'autoWatch', DEFAULT_AUTO_WATCH),
   };
 }

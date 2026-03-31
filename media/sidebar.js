@@ -18,6 +18,8 @@
 
   var searchForm = document.getElementById('search-form');
   var queryInput = document.getElementById('query-input');
+  var deepSearchInput = document.getElementById('deep-search');
+  var docsScopeInput = document.getElementById('docs-scope');
   var searchButton = document.getElementById('search-button');
   var statusEl = document.getElementById('status');
   var errorEl = document.getElementById('error');
@@ -30,6 +32,19 @@
       return 20;
     }
     return Math.floor(value);
+  }
+
+  function readToggle(input) {
+    return Boolean(input && input.checked);
+  }
+
+  function syncTogglesFromState() {
+    if (deepSearchInput && typeof state.deepSearch === 'boolean') {
+      deepSearchInput.checked = state.deepSearch;
+    }
+    if (docsScopeInput && typeof state.docsScope === 'boolean') {
+      docsScopeInput.checked = state.docsScope;
+    }
   }
 
   function matchesTab(item, tab) {
@@ -196,7 +211,12 @@
     searchForm.addEventListener('submit', function (event) {
       event.preventDefault();
       var query = queryInput && typeof queryInput.value === 'string' ? queryInput.value.trim() : '';
-      vscode.postMessage({ type: 'search', query: query });
+      vscode.postMessage({
+        type: 'search',
+        query: query,
+        deepSearch: readToggle(deepSearchInput),
+        docsScope: readToggle(docsScopeInput),
+      });
     });
   }
 
@@ -233,6 +253,7 @@
       if (queryInput && typeof state.query === 'string') {
         queryInput.value = state.query;
       }
+      syncTogglesFromState();
       setLoading(Boolean(state.loading));
       render();
       return;
@@ -245,6 +266,7 @@
   });
 
   setLoading(Boolean(state.loading));
+  syncTogglesFromState();
   setTab('all');
   if (queryInput) {
     queryInput.focus();

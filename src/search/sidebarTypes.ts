@@ -24,6 +24,8 @@ export interface UiResult {
 
 export interface ViewState {
   readonly query: string;
+  readonly deepSearch: boolean;
+  readonly docsScope: boolean;
   readonly loading: boolean;
   readonly error: string;
   readonly results: UiResult[];
