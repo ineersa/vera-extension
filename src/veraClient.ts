@@ -1,4 +1,4 @@
-import { execFile } from 'child_process';
+import { spawn } from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as vscode from 'vscode';
@@ -167,61 +167,92 @@ function runVeraCommand(
   const [binary = 'vera', ...commandArgs] = command;
 
   return new Promise((resolve, reject) => {
-    const child = execFile(
-      binary,
-      [...commandArgs, ...args],
-      { cwd, maxBuffer: 50 * 1024 * 1024 },
-      (error, stdout, stderr) => {
-        const stderrText = stderr.trim();
-        if (stderrText) {
-          reportStderrLines(stderrText, onStderrLine, Boolean(error));
-        }
+    const child = spawn(binary, [...commandArgs, ...args], {
+      cwd,
+      env: process.env,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
 
-        if (error) {
-          if (error.code === 'ENOENT') {
-            reject(
-              new Error(
-                `Vera command not found: ${binary}. Check veraSearch.command and ensure it is available in PATH.`
-              )
-            );
-            return;
-          }
+    const stdoutChunks: Buffer[] = [];
+    const stderrChunks: Buffer[] = [];
+    let settled = false;
 
-          const stdoutText = stdout.trim();
-          if (stderrText) {
-            reject(new Error(stderrText));
-            return;
-          }
-          if (stdoutText) {
-            reject(new Error(stdoutText));
-            return;
-          }
-          reject(error);
+    child.stdout?.on('data', (chunk: Buffer | string) => {
+      stdoutChunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    });
+
+    child.stderr?.on('data', (chunk: Buffer | string) => {
+      stderrChunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    });
+
+    const settle = (err: Error | null, code: number | null): void => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+
+      cancellation?.dispose();
+
+      const stdout = Buffer.concat(stdoutChunks).toString('utf8');
+      const stderr = Buffer.concat(stderrChunks).toString('utf8');
+      const stderrText = stderr.trim();
+
+      if (stderrText) {
+        reportStderrLines(stderrText, onStderrLine, err !== null || (code ?? 1) !== 0);
+      }
+
+      if (err) {
+        if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+          reject(
+            new Error(
+              `Vera command not found: ${binary}. Check veraSearch.command and ensure it is available in PATH.`
+            )
+          );
           return;
         }
-
-        resolve(stdout);
+        reject(err);
+        return;
       }
-    );
 
-    if (!token) {
-      return;
-    }
+      if (code !== 0) {
+        const stdoutText = stdout.trim();
+        if (stderrText) {
+          reject(new Error(stderrText));
+          return;
+        }
+        if (stdoutText) {
+          reject(new Error(stdoutText));
+          return;
+        }
+        reject(new Error(`Vera command exited with code ${String(code)}`));
+        return;
+      }
 
-    if (token.isCancellationRequested) {
-      child.kill();
-      reject(new Error('Search cancelled.'));
-      return;
-    }
+      resolve(stdout);
+    };
 
-    const cancellation = token.onCancellationRequested(() => {
-      child.kill();
-      reject(new Error('Search cancelled.'));
+    let cancellation: vscode.Disposable | undefined;
+
+    child.on('error', (err) => {
+      settle(err, null);
     });
 
-    child.on('close', () => {
-      cancellation.dispose();
+    child.on('exit', (code) => {
+      settle(null, code);
     });
+
+    if (token) {
+      if (token.isCancellationRequested) {
+        child.kill();
+        reject(new Error('Search cancelled.'));
+        return;
+      }
+
+      cancellation = token.onCancellationRequested(() => {
+        child.kill();
+        settle(new Error('Search cancelled.'), null);
+      });
+    }
   });
 }
 
