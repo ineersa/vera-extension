@@ -22,6 +22,10 @@ export interface VeraConfigSnapshot {
   readonly config: Record<string, VeraConfigValue>;
 }
 
+type StderrReporter = (line: string) => void;
+
+const DIAGNOSTIC_PATTERN = /\b(warn(?:ing)?|error|fatal|panic|failed?)\b/i;
+
 function escapeRegexPattern(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
@@ -44,6 +48,84 @@ function getWorkspaceRoot(): string | undefined {
 
 function hasVeraIndex(workspaceRoot: string): boolean {
   return fs.existsSync(path.join(workspaceRoot, '.vera'));
+}
+
+function toDiagnosticLine(rawLine: string): string | undefined {
+  const line = rawLine.trim();
+  if (!line) {
+    return undefined;
+  }
+
+  try {
+    const parsed: unknown = JSON.parse(line);
+    if (typeof parsed === 'string') {
+      return DIAGNOSTIC_PATTERN.test(parsed) ? parsed : undefined;
+    }
+
+    if (parsed !== null && typeof parsed === 'object') {
+      const payload = parsed as Record<string, unknown>;
+      const level = [payload.level, payload.severity, payload.kind, payload.type, payload.event]
+        .filter((value): value is string => typeof value === 'string')
+        .join(' ')
+        .toLowerCase();
+      const message = [payload.message, payload.msg, payload.error, payload.warning]
+        .filter((value): value is string => typeof value === 'string')
+        .find((value) => value.trim().length > 0);
+
+      if (DIAGNOSTIC_PATTERN.test(level)) {
+        return message ?? line;
+      }
+
+      if (message && DIAGNOSTIC_PATTERN.test(message)) {
+        return message;
+      }
+    }
+  } catch {
+    // Non-JSON stderr lines are handled below.
+  }
+
+  return DIAGNOSTIC_PATTERN.test(line) ? line : undefined;
+}
+
+function reportStderrLines(
+  stderr: string,
+  reporter?: StderrReporter,
+  includeAll = false
+): void {
+  if (!reporter) {
+    return;
+  }
+
+  const lines = stderr.split(/\r?\n|\r/g);
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    if (!line) {
+      continue;
+    }
+
+    if (includeAll) {
+      reporter(line);
+      continue;
+    }
+
+    const diagnostic = toDiagnosticLine(line);
+    if (diagnostic) {
+      reporter(diagnostic);
+    }
+  }
+}
+
+function withCommandLabel(
+  label: string,
+  reporter?: StderrReporter
+): StderrReporter | undefined {
+  if (!reporter) {
+    return undefined;
+  }
+
+  return (line: string) => {
+    reporter(`[${label}] ${line}`);
+  };
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -79,7 +161,8 @@ function runVeraCommand(
   command: readonly string[],
   args: string[],
   cwd: string,
-  token?: vscode.CancellationToken
+  token?: vscode.CancellationToken,
+  onStderrLine?: StderrReporter
 ): Promise<string> {
   const [binary = 'vera', ...commandArgs] = command;
 
@@ -89,6 +172,11 @@ function runVeraCommand(
       [...commandArgs, ...args],
       { cwd, maxBuffer: 50 * 1024 * 1024 },
       (error, stdout, stderr) => {
+        const stderrText = stderr.trim();
+        if (stderrText) {
+          reportStderrLines(stderrText, onStderrLine, Boolean(error));
+        }
+
         if (error) {
           if (error.code === 'ENOENT') {
             reject(
@@ -99,7 +187,6 @@ function runVeraCommand(
             return;
           }
 
-          const stderrText = stderr.trim();
           const stdoutText = stdout.trim();
           if (stderrText) {
             reject(new Error(stderrText));
@@ -142,10 +229,11 @@ function runVera(
   command: readonly string[],
   args: string[],
   cwd: string,
-  token?: vscode.CancellationToken
+  token?: vscode.CancellationToken,
+  onStderrLine?: StderrReporter
 ): Promise<VeraResult[]> {
   return new Promise((resolve, reject) => {
-    runVeraCommand(command, args, cwd, token)
+    runVeraCommand(command, args, cwd, token, onStderrLine)
       .then((stdout) => {
         try {
           const parsed = JSON.parse(stdout);
@@ -164,7 +252,10 @@ function runVera(
   });
 }
 
-export async function veraIndex(token?: vscode.CancellationToken): Promise<void> {
+export async function veraIndex(
+  token?: vscode.CancellationToken,
+  onStderrLine?: StderrReporter
+): Promise<void> {
   const root = getWorkspaceRoot();
   if (!root) {
     throw new Error('No workspace folder open.');
@@ -175,10 +266,19 @@ export async function veraIndex(token?: vscode.CancellationToken): Promise<void>
   }
 
   const settings = getVeraSearchSettings();
-  await runVera(settings.command, ['index', '.'], root, token);
+  await runVeraCommand(
+    settings.command,
+    ['index', '.'],
+    root,
+    token,
+    withCommandLabel('index', onStderrLine)
+  );
 }
 
-export async function veraConfigSnapshot(token?: vscode.CancellationToken): Promise<VeraConfigSnapshot> {
+export async function veraConfigSnapshot(
+  token?: vscode.CancellationToken,
+  onStderrLine?: StderrReporter
+): Promise<VeraConfigSnapshot> {
   const root = getWorkspaceRoot();
   if (!root) {
     throw new Error('No workspace folder open.');
@@ -189,7 +289,13 @@ export async function veraConfigSnapshot(token?: vscode.CancellationToken): Prom
   }
 
   const settings = getVeraSearchSettings();
-  const jsonOutput = await runVeraCommand(settings.command, ['config', '--json'], root, token);
+  const jsonOutput = await runVeraCommand(
+    settings.command,
+    ['config', '--json'],
+    root,
+    token,
+    withCommandLabel('config', onStderrLine)
+  );
 
   let parsed: unknown;
   try {
@@ -215,7 +321,8 @@ export async function veraConfigSnapshot(token?: vscode.CancellationToken): Prom
 export async function veraSetConfig(
   key: string,
   value: string,
-  token?: vscode.CancellationToken
+  token?: vscode.CancellationToken,
+  onStderrLine?: StderrReporter
 ): Promise<void> {
   const root = getWorkspaceRoot();
   if (!root) {
@@ -227,13 +334,20 @@ export async function veraSetConfig(
   }
 
   const settings = getVeraSearchSettings();
-  await runVeraCommand(settings.command, ['config', '--json', 'set', key, value], root, token);
+  await runVeraCommand(
+    settings.command,
+    ['config', '--json', 'set', key, value],
+    root,
+    token,
+    withCommandLabel('config', onStderrLine)
+  );
 }
 
 export async function veraSearch(
   query: string,
   options: VeraSearchOptions = {},
-  token?: vscode.CancellationToken
+  token?: vscode.CancellationToken,
+  onStderrLine?: StderrReporter
 ): Promise<{ searchResults: VeraResult[]; grepResults: VeraResult[] }> {
   const root = getWorkspaceRoot();
   if (!root) {
@@ -257,7 +371,13 @@ export async function veraSearch(
       'Cancel'
     );
     if (choice === 'Run index') {
-      await runVera(settings.command, ['index', '.'], root, token);
+      await runVeraCommand(
+        settings.command,
+        ['index', '.'],
+        root,
+        token,
+        withCommandLabel('index', onStderrLine)
+      );
       vscode.window.showInformationMessage('Vera index created.');
     } else {
       throw new Error('No Vera index available.');
@@ -276,10 +396,28 @@ export async function veraSearch(
   }
 
   const [searchResults, grepRegexResults, grepLiteralResults] = await Promise.allSettled([
-    runVera(settings.command, searchArgs, root, token),
-    runVera(settings.command, ['grep', query, '--json', '-n', String(settings.grepLimit)], root, token),
+    runVera(
+      settings.command,
+      searchArgs,
+      root,
+      token,
+      withCommandLabel('search', onStderrLine)
+    ),
+    runVera(
+      settings.command,
+      ['grep', query, '--json', '-n', String(settings.grepLimit)],
+      root,
+      token,
+      withCommandLabel('grep', onStderrLine)
+    ),
     runLiteralGrep
-      ? runVera(settings.command, ['grep', escapedQuery, '--json', '-n', String(settings.grepLimit)], root, token)
+      ? runVera(
+          settings.command,
+          ['grep', escapedQuery, '--json', '-n', String(settings.grepLimit)],
+          root,
+          token,
+          withCommandLabel('grep', onStderrLine)
+        )
       : Promise.resolve([] as VeraResult[]),
   ]);
 

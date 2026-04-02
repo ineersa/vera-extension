@@ -16,6 +16,63 @@ function hasVeraIndex(workspaceRoot: string): boolean {
   return fs.existsSync(path.join(workspaceRoot, '.vera'));
 }
 
+const WATCH_DIAGNOSTIC_PATTERN = /\b(warn(?:ing)?|error|fatal|panic|failed?)\b/i;
+
+function toWatchDiagnostic(rawLine: string): string | undefined {
+  const line = rawLine.trim();
+  if (!line) {
+    return undefined;
+  }
+
+  try {
+    const parsed: unknown = JSON.parse(line);
+    if (typeof parsed === 'string') {
+      return WATCH_DIAGNOSTIC_PATTERN.test(parsed) ? parsed : undefined;
+    }
+
+    if (parsed !== null && typeof parsed === 'object') {
+      const payload = parsed as Record<string, unknown>;
+      const level = [payload.level, payload.severity, payload.kind, payload.type, payload.event]
+        .filter((value): value is string => typeof value === 'string')
+        .join(' ')
+        .toLowerCase();
+      const message = [payload.message, payload.msg, payload.error, payload.warning]
+        .filter((value): value is string => typeof value === 'string')
+        .find((value) => value.trim().length > 0);
+
+      if (WATCH_DIAGNOSTIC_PATTERN.test(level)) {
+        return message ?? line;
+      }
+
+      if (message && WATCH_DIAGNOSTIC_PATTERN.test(message)) {
+        return message;
+      }
+    }
+  } catch {
+    // Non-JSON stderr lines are handled below.
+  }
+
+  return WATCH_DIAGNOSTIC_PATTERN.test(line) ? line : undefined;
+}
+
+function flushWatchStderrBuffer(
+  output: vscode.OutputChannel,
+  buffer: string,
+  flushTrailing = false
+): string {
+  const lines = buffer.split(/\r?\n|\r/g);
+  const trailing = flushTrailing ? '' : lines.pop() ?? '';
+
+  for (const rawLine of lines) {
+    const diagnostic = toWatchDiagnostic(rawLine);
+    if (diagnostic) {
+      output.appendLine(`[watch] ${diagnostic}`);
+    }
+  }
+
+  return trailing;
+}
+
 export class VeraWatchManager implements vscode.Disposable {
   private readonly disposables: vscode.Disposable[] = [];
   private watcher: ChildProcess | undefined;
@@ -91,12 +148,11 @@ export class VeraWatchManager implements vscode.Disposable {
     this.watcherCommand = command.join('\u0000');
     this.output.appendLine(`[watch] started in ${root}`);
 
+    let stderrBuffer = '';
+
     child.stderr?.on('data', (chunk: Buffer | string) => {
-      const text = chunk.toString().trim();
-      if (!text) {
-        return;
-      }
-      this.output.appendLine(`[watch] ${text}`);
+      stderrBuffer += chunk.toString();
+      stderrBuffer = flushWatchStderrBuffer(this.output, stderrBuffer);
     });
 
     child.on('error', (error: Error & { code?: string }) => {
@@ -127,6 +183,8 @@ export class VeraWatchManager implements vscode.Disposable {
       if (this.disposed) {
         return;
       }
+
+      stderrBuffer = flushWatchStderrBuffer(this.output, stderrBuffer, true);
 
       this.output.appendLine(
         `[watch] stopped (code=${String(code)}, signal=${signal ?? 'none'}), retrying in 2s`

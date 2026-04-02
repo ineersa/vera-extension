@@ -133,6 +133,9 @@ export class SearchSidebarViewProvider implements vscode.WebviewViewProvider, vs
   private readonly renderer = new SearchResultRenderer();
   private searchRequestId = 0;
   private searchCts: vscode.CancellationTokenSource | undefined;
+  private readonly reportCliDiagnostic = (line: string): void => {
+    this.output?.appendLine(line);
+  };
 
   private state: ViewState;
 
@@ -242,7 +245,7 @@ export class SearchSidebarViewProvider implements vscode.WebviewViewProvider, vs
   }
 
   private async readConfigEntries(): Promise<ConfigEntry[]> {
-    const snapshot = await veraConfigSnapshot();
+    const snapshot = await veraConfigSnapshot(undefined, this.reportCliDiagnostic);
     return flattenConfig(snapshot);
   }
 
@@ -320,7 +323,7 @@ export class SearchSidebarViewProvider implements vscode.WebviewViewProvider, vs
     this.postState();
 
     try {
-      await veraSetConfig(key, value);
+      await veraSetConfig(key, value, undefined, this.reportCliDiagnostic);
       const entries = await this.readConfigEntries();
       this.state = {
         ...this.state,
@@ -365,7 +368,7 @@ export class SearchSidebarViewProvider implements vscode.WebviewViewProvider, vs
     this.postState();
 
     try {
-      await veraIndex();
+      await veraIndex(undefined, this.reportCliDiagnostic);
       this.state = {
         ...this.state,
         indexing: false,
@@ -430,7 +433,8 @@ export class SearchSidebarViewProvider implements vscode.WebviewViewProvider, vs
       const { searchResults, grepResults } = await veraSearch(
         query,
         { deepSearch, docsScope },
-        cts.token
+        cts.token,
+        this.reportCliDiagnostic
       );
 
       if (cts.token.isCancellationRequested || requestId !== this.searchRequestId) {
