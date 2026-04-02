@@ -11,6 +11,20 @@ export interface OpenFileMessage {
   readonly line: number;
 }
 
+export interface IndexMessage {
+  readonly type: 'index';
+}
+
+export interface LoadConfigMessage {
+  readonly type: 'loadConfig';
+}
+
+export interface SaveConfigMessage {
+  readonly type: 'saveConfig';
+  readonly key: string;
+  readonly value: string;
+}
+
 export function isSearchMessage(msg: unknown): msg is SearchMessage {
   if (typeof msg !== 'object' || msg === null) {
     return false;
@@ -39,5 +53,23 @@ export function isOpenFileMessage(msg: unknown): msg is OpenFileMessage {
     (msg as OpenFileMessage).type === 'openFile' &&
     typeof (msg as OpenFileMessage).file === 'string' &&
     typeof (msg as OpenFileMessage).line === 'number'
+  );
+}
+
+export function isIndexMessage(msg: unknown): msg is IndexMessage {
+  return typeof msg === 'object' && msg !== null && (msg as IndexMessage).type === 'index';
+}
+
+export function isLoadConfigMessage(msg: unknown): msg is LoadConfigMessage {
+  return typeof msg === 'object' && msg !== null && (msg as LoadConfigMessage).type === 'loadConfig';
+}
+
+export function isSaveConfigMessage(msg: unknown): msg is SaveConfigMessage {
+  return (
+    typeof msg === 'object' &&
+    msg !== null &&
+    (msg as SaveConfigMessage).type === 'saveConfig' &&
+    typeof (msg as SaveConfigMessage).key === 'string' &&
+    typeof (msg as SaveConfigMessage).value === 'string'
   );
 }

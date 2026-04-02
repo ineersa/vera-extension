@@ -41,7 +41,7 @@ body {
 
 .search-form {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
   gap: 8px;
   margin-bottom: 8px;
 }
@@ -82,22 +82,248 @@ body {
   border-color: var(--vera-focus);
 }
 
-.search-btn {
+.search-btn,
+.index-btn,
+.config-btn {
   border: 1px solid transparent;
   border-radius: 6px;
-  background: var(--vscode-button-background);
-  color: var(--vscode-button-foreground);
   padding: 8px 12px;
   font-size: 12px;
   cursor: pointer;
+}
+
+.search-btn {
+  background: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+}
+
+.index-btn {
+  background: var(--vscode-button-secondaryBackground, var(--vera-surface));
+  color: var(--vscode-button-secondaryForeground, var(--vera-text));
+  border-color: var(--vera-border);
+}
+
+.config-btn {
+  background: var(--vscode-button-secondaryBackground, var(--vera-surface));
+  color: var(--vscode-button-secondaryForeground, var(--vera-text));
+  border-color: var(--vera-border);
 }
 
 .search-btn:hover {
   background: var(--vscode-button-hoverBackground);
 }
 
-.search-btn[disabled] {
+.index-btn:hover,
+.config-btn:hover {
+  border-color: var(--vera-focus);
+}
+
+.config-btn.active {
+  background: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+  border-color: var(--vscode-button-background);
+}
+
+.config-btn.busy {
+  opacity: 0.85;
+}
+
+.search-btn[disabled],
+.index-btn[disabled],
+.config-btn[disabled] {
   opacity: 0.7;
+  cursor: default;
+}
+
+.config-panel {
+  margin-bottom: 8px;
+  border: 1px solid var(--vera-border);
+  border-radius: 8px;
+  background: var(--vera-surface);
+  padding: 8px;
+}
+
+.config-panel[hidden] {
+  display: none;
+}
+
+.config-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.config-title {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.config-refresh-btn {
+  border: 1px solid var(--vera-border);
+  border-radius: 6px;
+  background: var(--vscode-button-secondaryBackground, var(--vera-bg));
+  color: var(--vscode-button-secondaryForeground, var(--vera-text));
+  font-size: 11px;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+
+.config-refresh-btn:hover {
+  border-color: var(--vera-focus);
+}
+
+.config-refresh-btn[disabled] {
+  opacity: 0.7;
+  cursor: default;
+}
+
+.config-status {
+  display: none;
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--vera-muted);
+}
+
+.config-error {
+  display: none;
+  margin-top: 8px;
+  border: 1px solid var(--vscode-inputValidation-errorBorder, var(--vera-border));
+  border-radius: 6px;
+  background: var(--vscode-inputValidation-errorBackground, var(--vera-surface));
+  color: var(--vscode-errorForeground, var(--vera-text));
+  padding: 8px;
+  font-size: 11px;
+}
+
+.config-list {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 320px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.config-empty {
+  border: 1px dashed var(--vera-border);
+  border-radius: 8px;
+  color: var(--vera-muted);
+  text-align: center;
+  padding: 10px;
+  font-size: 11px;
+}
+
+.config-group {
+  border: 1px solid var(--vera-border);
+  border-radius: 8px;
+  background: var(--vera-bg);
+  padding: 8px;
+}
+
+.config-group-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--vera-muted);
+  margin-bottom: 6px;
+}
+
+.config-row {
+  border: 1px solid var(--vera-border);
+  border-radius: 6px;
+  background: var(--vera-surface);
+  padding: 8px;
+}
+
+.config-row + .config-row {
+  margin-top: 6px;
+}
+
+.config-row-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.config-key {
+  font-size: 11px;
+  font-family: var(--vscode-editor-font-family, monospace);
+  color: var(--vera-text);
+  overflow-wrap: anywhere;
+}
+
+.config-row-tags {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.config-pill {
+  border: 1px solid var(--vera-border);
+  border-radius: 999px;
+  padding: 1px 7px;
+  font-size: 10px;
+  color: var(--vera-muted);
+}
+
+.config-pill-muted {
+  opacity: 0.75;
+}
+
+.config-row-editor {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px;
+}
+
+.config-input {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--vscode-input-border, var(--vera-border));
+  border-radius: 6px;
+  background: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+  font-size: 11px;
+  font-family: var(--vscode-editor-font-family, monospace);
+  padding: 6px 8px;
+}
+
+.config-input:focus {
+  outline: none;
+  border-color: var(--vera-focus);
+}
+
+.config-json-input {
+  min-height: 80px;
+  resize: vertical;
+  line-height: 1.4;
+}
+
+.config-save-btn {
+  border: 1px solid var(--vera-border);
+  border-radius: 6px;
+  background: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+  font-size: 11px;
+  padding: 6px 9px;
+  cursor: pointer;
+  align-self: start;
+}
+
+.config-save-btn:hover {
+  border-color: var(--vera-focus);
+}
+
+.config-save-btn[disabled],
+.config-input[disabled] {
+  opacity: 0.75;
   cursor: default;
 }
 

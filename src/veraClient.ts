@@ -10,6 +10,18 @@ export interface VeraSearchOptions {
   readonly docsScope?: boolean;
 }
 
+export type VeraConfigValue =
+  | string
+  | number
+  | boolean
+  | null
+  | VeraConfigValue[]
+  | { [key: string]: VeraConfigValue };
+
+export interface VeraConfigSnapshot {
+  readonly config: Record<string, VeraConfigValue>;
+}
+
 function escapeRegexPattern(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
@@ -34,12 +46,41 @@ function hasVeraIndex(workspaceRoot: string): boolean {
   return fs.existsSync(path.join(workspaceRoot, '.vera'));
 }
 
-function runVera(
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function normalizeConfigValue(value: unknown): VeraConfigValue {
+  if (
+    typeof value === 'string' ||
+    typeof value === 'number' ||
+    typeof value === 'boolean' ||
+    value === null
+  ) {
+    return value;
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((item) => normalizeConfigValue(item));
+  }
+
+  if (isPlainObject(value)) {
+    const normalized: Record<string, VeraConfigValue> = {};
+    for (const [key, nested] of Object.entries(value)) {
+      normalized[key] = normalizeConfigValue(nested);
+    }
+    return normalized;
+  }
+
+  return String(value);
+}
+
+function runVeraCommand(
   command: readonly string[],
   args: string[],
   cwd: string,
   token?: vscode.CancellationToken
-): Promise<VeraResult[]> {
+): Promise<string> {
   const [binary = 'vera', ...commandArgs] = command;
 
   return new Promise((resolve, reject) => {
@@ -57,21 +98,22 @@ function runVera(
             );
             return;
           }
-          if (stderr && !stdout) {
-            reject(new Error(stderr.trim()));
+
+          const stderrText = stderr.trim();
+          const stdoutText = stdout.trim();
+          if (stderrText) {
+            reject(new Error(stderrText));
             return;
           }
-        }
-        try {
-          const parsed = JSON.parse(stdout);
-          if (Array.isArray(parsed)) {
-            resolve(parsed as VeraResult[]);
-          } else {
-            resolve([]);
+          if (stdoutText) {
+            reject(new Error(stdoutText));
+            return;
           }
-        } catch {
-          resolve([]);
+          reject(error);
+          return;
         }
+
+        resolve(stdout);
       }
     );
 
@@ -94,6 +136,98 @@ function runVera(
       cancellation.dispose();
     });
   });
+}
+
+function runVera(
+  command: readonly string[],
+  args: string[],
+  cwd: string,
+  token?: vscode.CancellationToken
+): Promise<VeraResult[]> {
+  return new Promise((resolve, reject) => {
+    runVeraCommand(command, args, cwd, token)
+      .then((stdout) => {
+        try {
+          const parsed = JSON.parse(stdout);
+          if (Array.isArray(parsed)) {
+            resolve(parsed as VeraResult[]);
+          } else {
+            resolve([]);
+          }
+        } catch {
+          resolve([]);
+        }
+      })
+      .catch((error: unknown) => {
+        reject(error);
+      });
+  });
+}
+
+export async function veraIndex(token?: vscode.CancellationToken): Promise<void> {
+  const root = getWorkspaceRoot();
+  if (!root) {
+    throw new Error('No workspace folder open.');
+  }
+
+  if (token?.isCancellationRequested) {
+    throw new Error('Index cancelled.');
+  }
+
+  const settings = getVeraSearchSettings();
+  await runVera(settings.command, ['index', '.'], root, token);
+}
+
+export async function veraConfigSnapshot(token?: vscode.CancellationToken): Promise<VeraConfigSnapshot> {
+  const root = getWorkspaceRoot();
+  if (!root) {
+    throw new Error('No workspace folder open.');
+  }
+
+  if (token?.isCancellationRequested) {
+    throw new Error('Config read cancelled.');
+  }
+
+  const settings = getVeraSearchSettings();
+  const jsonOutput = await runVeraCommand(settings.command, ['config', '--json'], root, token);
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(jsonOutput);
+  } catch {
+    throw new Error('Failed to parse `vera config --json` output.');
+  }
+
+  if (!isPlainObject(parsed)) {
+    throw new Error('Unexpected `vera config --json` output format.');
+  }
+
+  const config: Record<string, VeraConfigValue> = {};
+  for (const [key, value] of Object.entries(parsed)) {
+    config[key] = normalizeConfigValue(value);
+  }
+
+  return {
+    config,
+  };
+}
+
+export async function veraSetConfig(
+  key: string,
+  value: string,
+  token?: vscode.CancellationToken
+): Promise<void> {
+  const root = getWorkspaceRoot();
+  if (!root) {
+    throw new Error('No workspace folder open.');
+  }
+
+  if (token?.isCancellationRequested) {
+    throw new Error('Config update cancelled.');
+  }
+
+  const settings = getVeraSearchSettings();
+  await runVeraCommand(settings.command, ['config', '--json', 'set', key, value], root, token);
 }
 
 export async function veraSearch(

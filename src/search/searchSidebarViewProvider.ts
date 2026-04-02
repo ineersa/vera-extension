@@ -1,12 +1,127 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { getVeraSearchSettings } from '../settings';
-import { veraSearch } from '../veraClient';
-import { isOpenFileMessage, isSearchMessage } from './messages';
+import {
+  VeraConfigSnapshot,
+  VeraConfigValue,
+  veraConfigSnapshot,
+  veraIndex,
+  veraSearch,
+  veraSetConfig,
+} from '../veraClient';
+import {
+  isIndexMessage,
+  isLoadConfigMessage,
+  isOpenFileMessage,
+  isSaveConfigMessage,
+  isSearchMessage,
+} from './messages';
 import { compareResults, rankAndMergeResults } from './ranking';
 import { SearchResultRenderer } from './resultRenderer';
 import { buildSidebarHtml } from './webviewHtml';
-import { emptyCounts, ViewState } from './sidebarTypes';
+import { ConfigEntry, ConfigValueType, emptyCounts, ViewState } from './sidebarTypes';
+
+function getConfigValueType(value: VeraConfigValue): ConfigValueType {
+  if (typeof value === 'string') {
+    return 'string';
+  }
+  if (typeof value === 'number') {
+    return 'number';
+  }
+  if (typeof value === 'boolean') {
+    return 'boolean';
+  }
+  return 'json';
+}
+
+function stringifyConfigValue(value: VeraConfigValue, valueType: ConfigValueType): string {
+  if (valueType === 'json') {
+    return JSON.stringify(value, null, 2);
+  }
+  if (typeof value === 'string') {
+    return value;
+  }
+  return String(value);
+}
+
+function flattenConfig(snapshot: VeraConfigSnapshot): ConfigEntry[] {
+  const entries: ConfigEntry[] = [];
+
+  const pushEntry = (key: string, section: string, value: VeraConfigValue): void => {
+    const valueType = getConfigValueType(value);
+    entries.push({
+      key,
+      section,
+      value: stringifyConfigValue(value, valueType),
+      valueType,
+    });
+  };
+
+  const walk = (value: VeraConfigValue, key: string, section: string): void => {
+    if (Array.isArray(value)) {
+      pushEntry(key, section, value);
+      return;
+    }
+
+    if (value !== null && typeof value === 'object') {
+      const nested = value as Record<string, VeraConfigValue>;
+      const nestedKeys = Object.keys(nested).sort((a, b) => a.localeCompare(b));
+      if (nestedKeys.length === 0) {
+        pushEntry(key, section, value);
+        return;
+      }
+
+      for (const nestedKey of nestedKeys) {
+        walk(nested[nestedKey], `${key}.${nestedKey}`, section);
+      }
+      return;
+    }
+
+    pushEntry(key, section, value);
+  };
+
+  const sections = Object.keys(snapshot.config).sort((a, b) => a.localeCompare(b));
+  for (const section of sections) {
+    walk(snapshot.config[section], section, section);
+  }
+
+  return entries;
+}
+
+function parseConfigInput(entry: ConfigEntry, rawValue: string): string {
+  switch (entry.valueType) {
+    case 'boolean': {
+      const normalized = rawValue.trim().toLowerCase();
+      if (normalized !== 'true' && normalized !== 'false') {
+        throw new Error('Boolean values must be `true` or `false`.');
+      }
+      return normalized;
+    }
+    case 'number': {
+      const trimmed = rawValue.trim();
+      if (!trimmed) {
+        throw new Error('Number value cannot be empty.');
+      }
+      const parsed = Number(trimmed);
+      if (!Number.isFinite(parsed)) {
+        throw new Error('Number value is invalid.');
+      }
+      return String(parsed);
+    }
+    case 'json': {
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(rawValue);
+      } catch {
+        throw new Error('Invalid JSON.');
+      }
+      return JSON.stringify(parsed);
+    }
+    case 'string':
+    default:
+      return rawValue;
+  }
+}
 
 export class SearchSidebarViewProvider implements vscode.WebviewViewProvider, vscode.Disposable {
   public static readonly viewType = 'vera.searchSidebar';
@@ -23,7 +138,9 @@ export class SearchSidebarViewProvider implements vscode.WebviewViewProvider, vs
 
   constructor(
     private readonly extensionUri: vscode.Uri,
-    private readonly onSearchLifecycle?: () => void
+    private readonly onSearchLifecycle?: () => void,
+    private readonly onConfigSaved?: () => void,
+    private readonly output?: vscode.OutputChannel
   ) {
     const settings = getVeraSearchSettings();
     this.state = {
@@ -31,10 +148,16 @@ export class SearchSidebarViewProvider implements vscode.WebviewViewProvider, vs
       deepSearch: false,
       docsScope: false,
       loading: false,
+      indexing: false,
       error: '',
       results: [],
       counts: emptyCounts(),
       allTabGrepLimit: settings.allTabGrepLimit,
+      configLoading: false,
+      configSavingKey: '',
+      configStatus: '',
+      configError: '',
+      configEntries: [],
     };
 
     this.providerDisposables.push(
@@ -100,6 +223,170 @@ export class SearchSidebarViewProvider implements vscode.WebviewViewProvider, vs
 
     if (isOpenFileMessage(msg)) {
       await this.openResult(msg.file, msg.line);
+      return;
+    }
+
+    if (isIndexMessage(msg)) {
+      await this.indexWorkspace();
+      return;
+    }
+
+    if (isLoadConfigMessage(msg)) {
+      await this.loadConfig();
+      return;
+    }
+
+    if (isSaveConfigMessage(msg)) {
+      await this.saveConfigValue(msg.key, msg.value);
+    }
+  }
+
+  private async readConfigEntries(): Promise<ConfigEntry[]> {
+    const snapshot = await veraConfigSnapshot();
+    return flattenConfig(snapshot);
+  }
+
+  private async loadConfig(): Promise<void> {
+    if (this.state.configLoading || this.state.configSavingKey.length > 0) {
+      return;
+    }
+
+    this.state = {
+      ...this.state,
+      configLoading: true,
+      configError: '',
+      configStatus: '',
+    };
+    this.postState();
+
+    try {
+      const entries = await this.readConfigEntries();
+      this.state = {
+        ...this.state,
+        configLoading: false,
+        configEntries: entries,
+        configError: '',
+        configStatus: `Loaded ${entries.length} config values.`,
+      };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      this.state = {
+        ...this.state,
+        configLoading: false,
+        configError: `Failed to load config: ${message}`,
+        configStatus: '',
+      };
+    }
+
+    this.postState();
+  }
+
+  private async saveConfigValue(key: string, rawValue: string): Promise<void> {
+    if (this.state.configLoading || this.state.configSavingKey.length > 0) {
+      return;
+    }
+
+    const entry = this.state.configEntries.find((item) => item.key === key);
+    if (!entry) {
+      this.state = {
+        ...this.state,
+        configError: `Unknown config key: ${key}`,
+        configStatus: '',
+      };
+      this.postState();
+      return;
+    }
+
+    let value: string;
+    try {
+      value = parseConfigInput(entry, rawValue);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      this.state = {
+        ...this.state,
+        configError: `${key}: ${message}`,
+        configStatus: '',
+      };
+      this.postState();
+      return;
+    }
+
+    this.state = {
+      ...this.state,
+      configSavingKey: key,
+      configError: '',
+      configStatus: '',
+    };
+    this.postState();
+
+    try {
+      await veraSetConfig(key, value);
+      const entries = await this.readConfigEntries();
+      this.state = {
+        ...this.state,
+        configSavingKey: '',
+        configEntries: entries,
+        configError: '',
+        configStatus: `Saved ${key}. Triggered Vera watch reload.`,
+      };
+      this.onConfigSaved?.();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      this.state = {
+        ...this.state,
+        configSavingKey: '',
+        configError: `Failed to save ${key}: ${message}`,
+        configStatus: '',
+      };
+    }
+
+    this.postState();
+  }
+
+  private async indexWorkspace(): Promise<void> {
+    if (this.state.indexing) {
+      return;
+    }
+
+    this.cancelPendingSearch();
+
+    const settings = getVeraSearchSettings();
+    const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '<no-workspace>';
+    const commandText = `${settings.command.join(' ')} index .`;
+    this.output?.appendLine(`[index] starting in ${root}: ${commandText}`);
+
+    this.state = {
+      ...this.state,
+      loading: false,
+      indexing: true,
+      error: '',
+      allTabGrepLimit: settings.allTabGrepLimit,
+    };
+    this.postState();
+
+    try {
+      await veraIndex();
+      this.state = {
+        ...this.state,
+        indexing: false,
+        error: '',
+        allTabGrepLimit: settings.allTabGrepLimit,
+      };
+      this.postState();
+      this.output?.appendLine(`[index] completed in ${root}`);
+      vscode.window.showInformationMessage('Vera index created.');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      this.state = {
+        ...this.state,
+        indexing: false,
+        error: `Vera index failed: ${message}`,
+        allTabGrepLimit: settings.allTabGrepLimit,
+      };
+      this.postState();
+      this.output?.appendLine(`[index] failed in ${root}: ${message}`);
+    } finally {
+      this.onSearchLifecycle?.();
     }
   }
 
@@ -109,6 +396,7 @@ export class SearchSidebarViewProvider implements vscode.WebviewViewProvider, vs
     if (!query) {
       this.cancelPendingSearch();
       this.state = {
+        ...this.state,
         query: '',
         deepSearch,
         docsScope,
@@ -152,6 +440,7 @@ export class SearchSidebarViewProvider implements vscode.WebviewViewProvider, vs
       const ranked = rankAndMergeResults(query, searchResults, grepResults).sort(compareResults);
 
       this.state = {
+        ...this.state,
         query,
         deepSearch,
         docsScope,

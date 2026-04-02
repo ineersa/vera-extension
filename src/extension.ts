@@ -3,14 +3,23 @@ import { SearchSidebarViewProvider } from './search/searchSidebarViewProvider';
 import { VeraWatchManager } from './watch/veraWatchManager';
 
 export function activate(context: vscode.ExtensionContext): void {
-  const watchManager = new VeraWatchManager();
+  const output = vscode.window.createOutputChannel('Vera Search');
+  const watchManager = new VeraWatchManager(output);
   void watchManager.refresh();
 
-  const provider = new SearchSidebarViewProvider(context.extensionUri, () => {
-    void watchManager.refresh();
-  });
+  const provider = new SearchSidebarViewProvider(
+    context.extensionUri,
+    () => {
+      void watchManager.refresh();
+    },
+    () => {
+      void watchManager.restart('vera config updated');
+    },
+    output
+  );
 
   context.subscriptions.push(
+    output,
     vscode.window.registerWebviewViewProvider(SearchSidebarViewProvider.viewType, provider, {
       webviewOptions: {
         retainContextWhenHidden: true,

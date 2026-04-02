@@ -33,11 +33,14 @@ code --install-extension vera-search-0.1.0.vsix
 
 1. Open a workspace that has a `.vera/` index
 2. Press **Ctrl+Shift+\\** (or **Cmd+Shift+\\** on macOS) — or run **Vera: Search Code** from the Command Palette (`Ctrl+Shift+P`)
-3. Vera sidebar opens on the left; type a query, optionally enable **Deep** (`--deep`) or **Docs** (`--scope docs`), then press Enter
-4. Results render in-place in the same sidebar with sectioned ranking and 3-line snippets
-5. Use tabs to switch between All, Search, Grep, Classes, and Methods (`All` caps grep-only rows using `veraSearch.allTabGrepLimit`)
-6. Select any result to jump to that file and line
-7. With `veraSearch.autoWatch` enabled, the extension runs `vera watch` in background to keep the first workspace index fresh
+3. Vera sidebar opens on the left; use **Index** anytime to run `vera index .` in the workspace root
+4. Click **Config** to open the collapsible Vera config editor (hidden by default to save space)
+5. Edit values and press **Save** per key (`array`/`object` keys use JSON textareas)
+6. Type a query, optionally enable **Deep** (`--deep`) or **Docs** (`--scope docs`), then press Enter
+7. Results render in-place in the same sidebar with sectioned ranking and 3-line snippets
+8. Use tabs to switch between All, Search, Grep, Classes, and Methods (`All` caps grep-only rows using `veraSearch.allTabGrepLimit`)
+9. Select any result to jump to that file and line
+10. With `veraSearch.autoWatch` enabled, the extension runs `vera watch` in background to keep the first workspace index fresh
 
 If no index exists, the extension will offer to run `vera index .` for you.
 
@@ -59,6 +62,8 @@ npm run lint         # type-check only
 - `veraSearch.autoWatch` (default: `true`) — run `vera watch` in background when `.vera` exists.
 
 The extension auto-detects the first workspace root and uses `veraSearch.command` for all Vera invocations.
+
+The **Config** button in the sidebar reads values from `vera config --json` and applies updates with `vera config --json set <key> <value>`. After a save, the extension reloads `vera watch` so new config takes effect.
 
 ### Docker example (`.vscode/settings.json`)
 

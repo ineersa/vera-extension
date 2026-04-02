@@ -17,7 +17,6 @@ function hasVeraIndex(workspaceRoot: string): boolean {
 }
 
 export class VeraWatchManager implements vscode.Disposable {
-  private readonly output = vscode.window.createOutputChannel('Vera Search');
   private readonly disposables: vscode.Disposable[] = [];
   private watcher: ChildProcess | undefined;
   private watcherRoot: string | undefined;
@@ -25,9 +24,8 @@ export class VeraWatchManager implements vscode.Disposable {
   private restartTimer: ReturnType<typeof setTimeout> | undefined;
   private disposed = false;
 
-  constructor() {
+  constructor(private readonly output: vscode.OutputChannel) {
     this.disposables.push(
-      this.output,
       vscode.workspace.onDidChangeConfiguration((event) => {
         if (
           !event.affectsConfiguration('veraSearch.autoWatch') &&
@@ -65,6 +63,18 @@ export class VeraWatchManager implements vscode.Disposable {
 
     this.stopWatcher();
     this.startWatcher(root, settings.command);
+  }
+
+  public async restart(reason = 'config update'): Promise<void> {
+    this.clearRestartTimer();
+
+    if (this.disposed) {
+      return;
+    }
+
+    this.output.appendLine(`[watch] restarting (${reason})`);
+    this.stopWatcher();
+    await this.refresh();
   }
 
   private startWatcher(root: string, command: readonly string[]): void {

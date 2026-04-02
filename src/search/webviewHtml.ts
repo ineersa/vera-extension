@@ -55,6 +55,8 @@ export function buildSidebarHtml(
       <form id="search-form" class="search-form">
         <input id="query-input" class="query-input" type="text" placeholder="Search symbols and code with Vera..." value="${escapeHtml(state.query)}" />
         <button id="search-button" class="search-btn" type="submit">Search</button>
+        <button id="index-button" class="index-btn" type="button" title="Run vera index .">Index</button>
+        <button id="config-button" class="config-btn" type="button" title="Show Vera configuration">Config</button>
       </form>
       <div class="search-options" role="group" aria-label="Search options">
         <label class="search-option">
@@ -66,6 +68,15 @@ export function buildSidebarHtml(
           <span>Docs</span>
         </label>
       </div>
+      <section id="config-panel" class="config-panel" hidden>
+        <div class="config-header">
+          <span class="config-title">Vera Config</span>
+          <button id="config-refresh" class="config-refresh-btn" type="button">Refresh</button>
+        </div>
+        <div id="config-status" class="config-status"></div>
+        <div id="config-error" class="config-error"></div>
+        <div id="config-list" class="config-list"></div>
+      </section>
       <div id="status" class="status"></div>
       <div class="tabs">${tabsHtml}</div>
       <div id="error" class="error"></div>
