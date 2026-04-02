@@ -52,6 +52,11 @@
     "configuration": {
       "title": "Vera Search",
       "properties": {
+        "veraSearch.command": {
+          "type": "string",
+          "default": "vera",
+          "description": "Command used to run Vera. Supports arguments (for example: docker run --rm my-vera-image)."
+        },
         "veraSearch.searchLimit": {
           "type": "number",
           "default": 20,

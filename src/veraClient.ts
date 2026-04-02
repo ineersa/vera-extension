@@ -22,10 +22,6 @@ function dedupByLocation(results: VeraResult[]): VeraResult[] {
   return Array.from(seen.values());
 }
 
-function findVeraBinary(): string {
-  return 'vera';
-}
-
 function getWorkspaceRoot(): string | undefined {
   const folders = vscode.workspace.workspaceFolders;
   if (!folders || folders.length === 0) {
@@ -39,19 +35,26 @@ function hasVeraIndex(workspaceRoot: string): boolean {
 }
 
 function runVera(
+  command: readonly string[],
   args: string[],
   cwd: string,
   token?: vscode.CancellationToken
 ): Promise<VeraResult[]> {
+  const [binary = 'vera', ...commandArgs] = command;
+
   return new Promise((resolve, reject) => {
     const child = execFile(
-      findVeraBinary(),
-      args,
+      binary,
+      [...commandArgs, ...args],
       { cwd, maxBuffer: 50 * 1024 * 1024 },
       (error, stdout, stderr) => {
         if (error) {
           if (error.code === 'ENOENT') {
-            reject(new Error('vera binary not found in PATH. Install vera first.'));
+            reject(
+              new Error(
+                `Vera command not found: ${binary}. Check veraSearch.command and ensure it is available in PATH.`
+              )
+            );
             return;
           }
           if (stderr && !stdout) {
@@ -112,13 +115,15 @@ export async function veraSearch(
   const docsScope = options.docsScope === true;
 
   if (!hasVeraIndex(root)) {
+    const configuredCommand = settings.command.join(' ');
+    const indexCommand = `${configuredCommand} index .`;
     const choice = await vscode.window.showWarningMessage(
-      'No Vera index found in this workspace. Run `vera index` first?',
-      'Run vera index',
+      `No Vera index found in this workspace. Run \`${indexCommand}\` first?`,
+      'Run index',
       'Cancel'
     );
-    if (choice === 'Run vera index') {
-      await runVera(['index', '.'], root, token);
+    if (choice === 'Run index') {
+      await runVera(settings.command, ['index', '.'], root, token);
       vscode.window.showInformationMessage('Vera index created.');
     } else {
       throw new Error('No Vera index available.');
@@ -137,10 +142,10 @@ export async function veraSearch(
   }
 
   const [searchResults, grepRegexResults, grepLiteralResults] = await Promise.allSettled([
-    runVera(searchArgs, root, token),
-    runVera(['grep', query, '--json', '-n', String(settings.grepLimit)], root, token),
+    runVera(settings.command, searchArgs, root, token),
+    runVera(settings.command, ['grep', query, '--json', '-n', String(settings.grepLimit)], root, token),
     runLiteralGrep
-      ? runVera(['grep', escapedQuery, '--json', '-n', String(settings.grepLimit)], root, token)
+      ? runVera(settings.command, ['grep', escapedQuery, '--json', '-n', String(settings.grepLimit)], root, token)
       : Promise.resolve([] as VeraResult[]),
   ]);
 

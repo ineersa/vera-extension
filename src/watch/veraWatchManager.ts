@@ -21,6 +21,7 @@ export class VeraWatchManager implements vscode.Disposable {
   private readonly disposables: vscode.Disposable[] = [];
   private watcher: ChildProcess | undefined;
   private watcherRoot: string | undefined;
+  private watcherCommand: string | undefined;
   private restartTimer: ReturnType<typeof setTimeout> | undefined;
   private disposed = false;
 
@@ -28,7 +29,10 @@ export class VeraWatchManager implements vscode.Disposable {
     this.disposables.push(
       this.output,
       vscode.workspace.onDidChangeConfiguration((event) => {
-        if (!event.affectsConfiguration('veraSearch.autoWatch')) {
+        if (
+          !event.affectsConfiguration('veraSearch.autoWatch') &&
+          !event.affectsConfiguration('veraSearch.command')
+        ) {
           return;
         }
         void this.refresh();
@@ -48,22 +52,25 @@ export class VeraWatchManager implements vscode.Disposable {
 
     const settings = getVeraSearchSettings();
     const root = getWorkspaceRoot();
+    const commandKey = settings.command.join('\u0000');
 
     if (!settings.autoWatch || !root || !hasVeraIndex(root)) {
       this.stopWatcher();
       return;
     }
 
-    if (this.watcher && this.watcherRoot === root) {
+    if (this.watcher && this.watcherRoot === root && this.watcherCommand === commandKey) {
       return;
     }
 
     this.stopWatcher();
-    this.startWatcher(root);
+    this.startWatcher(root, settings.command);
   }
 
-  private startWatcher(root: string): void {
-    const child = spawn('vera', ['watch', '.', '--json'], {
+  private startWatcher(root: string, command: readonly string[]): void {
+    const [binary = 'vera', ...commandArgs] = command;
+
+    const child = spawn(binary, [...commandArgs, 'watch', '.', '--json'], {
       cwd: root,
       env: process.env,
       stdio: ['ignore', 'ignore', 'pipe'],
@@ -71,6 +78,7 @@ export class VeraWatchManager implements vscode.Disposable {
 
     this.watcher = child;
     this.watcherRoot = root;
+    this.watcherCommand = command.join('\u0000');
     this.output.appendLine(`[watch] started in ${root}`);
 
     child.stderr?.on('data', (chunk: Buffer | string) => {
@@ -88,6 +96,7 @@ export class VeraWatchManager implements vscode.Disposable {
 
       this.watcher = undefined;
       this.watcherRoot = undefined;
+      this.watcherCommand = undefined;
       this.output.appendLine(`[watch] failed to start: ${error.message}`);
 
       if (error.code === 'ENOENT') {
@@ -103,6 +112,7 @@ export class VeraWatchManager implements vscode.Disposable {
 
       this.watcher = undefined;
       this.watcherRoot = undefined;
+      this.watcherCommand = undefined;
 
       if (this.disposed) {
         return;
@@ -125,6 +135,7 @@ export class VeraWatchManager implements vscode.Disposable {
     const child = this.watcher;
     this.watcher = undefined;
     this.watcherRoot = undefined;
+    this.watcherCommand = undefined;
     child.kill();
   }
 

@@ -1,12 +1,12 @@
 # Vera Search — VS Code Extension
 
-Semantic code search inside VS Code powered by [Vera](https://github.com/nicepkg/vera).
+Semantic code search inside VS Code powered by [Vera](https://github.com/lemon07r/Vera).
 
 Runs `vera search` (hybrid BM25 + vector) and `vera grep` (regex) in parallel, renders ranked results in a persistent sidebar view, and can keep the index warm with background `vera watch`.
 
 ## Requirements
 
-- [Vera](https://github.com/nicepkg/vera) installed and available in `PATH`
+- [Vera](https://github.com/lemon07r/Vera) installed and available in `PATH`
 - An indexed project (run `vera index .` in the project root)
 
 ## Install
@@ -52,12 +52,23 @@ npm run lint         # type-check only
 
 ## Configuration
 
+- `veraSearch.command` (default: `vera`) — command used to run Vera; supports arguments (for example Docker wrappers).
 - `veraSearch.searchLimit` (default: `20`) — max semantic search results.
 - `veraSearch.grepLimit` (default: `200`) — max grep results.
 - `veraSearch.allTabGrepLimit` (default: `20`) — grep-only rows shown in the `All` tab.
 - `veraSearch.autoWatch` (default: `true`) — run `vera watch` in background when `.vera` exists.
 
-The extension uses `vera` from `PATH` and auto-detects the first workspace root.
+The extension auto-detects the first workspace root and uses `veraSearch.command` for all Vera invocations.
+
+### Docker example (`.vscode/settings.json`)
+
+```json
+{
+  "veraSearch.command": "docker run --rm -i --add-host=host.docker.internal:host-gateway -v .:/workspace -v vera-config:/root/.vera -w /workspace -e EMBEDDING_MODEL_BASE_URL=http://host.docker.internal:8059/v1 -e EMBEDDING_MODEL_API_KEY=not-needed -e EMBEDDING_MODEL_ID=coderankembed-q8_0.gguf -e \"EMBEDDING_MODEL_QUERY_PREFIX=Represent this query for searching relevant code:\" -e RERANKER_MODEL_BASE_URL=http://host.docker.internal:8060/v1 -e RERANKER_MODEL_API_KEY=not-needed -e RERANKER_MODEL_ID=bge-reranker-base-q8_0.gguf -e RERANKER_MAX_DOCS_PER_REQUEST=8 -e RERANKER_MAX_DOCUMENT_CHARS=1200 -e VERA_COMPLETION_BASE_URL=http://host.docker.internal:8052/v1 -e VERA_COMPLETION_MODEL_ID=flash -e VERA_COMPLETION_API_KEY=not-needed vera:local"
+}
+```
+
+Use `-v .:/workspace` instead of `$(pwd)` in this setting because the extension executes the command directly (without shell expansion).
 
 ## License
 
